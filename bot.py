@@ -4,53 +4,64 @@ import requests
 
 # ================= CONFIG =================
 TOKEN = os.getenv("TOKEN")
-CHAT_ID = None
 
 SYMBOL = "BTC-USDT"
 TRADE_AMOUNT = 10
 MAX_BUYS = 5
 
-TP_PERCENT = 0.002   # 0.2%
-SL_PERCENT = 0.003   # 0.3%  👈 STOP LOSS
+TP_PERCENT = 0.002
+SL_PERCENT = 0.003
 
 CHECK_SPEED = 3
 
 positions = []
 base_price = None
+CHAT_ID = None
 
 # ================= TELEGRAM =================
-def send(msg):
+def get_chat_id():
     global CHAT_ID
-    if not TOKEN:
-        return
-
-    url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
     try:
+        url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
         data = requests.get(url).json()
         if data["result"]:
             CHAT_ID = data["result"][-1]["message"]["chat"]["id"]
     except:
         pass
 
-    if CHAT_ID:
+def send(msg):
+    if not CHAT_ID:
+        return
+    try:
         requests.post(
             f"https://api.telegram.org/bot{TOKEN}/sendMessage",
             json={"chat_id": CHAT_ID, "text": msg}
         )
+    except:
+        pass
 
 # ================= PRICE =================
 def get_price():
-    url = "https://api.kucoin.com/api/v1/market/orderbook/level1"
-    params = {"symbol": SYMBOL}
     try:
+        url = "https://api.kucoin.com/api/v1/market/orderbook/level1"
+        params = {"symbol": SYMBOL}
         res = requests.get(url, params=params).json()
         return float(res["data"]["price"])
     except:
         return None
 
-# ================= MAIN =================
-send("🚀 GRID BOT WITH SL ACTIVE")
+# ================= START =================
+print("🚀 BOT STARTED")
 
+# pata chat id mapema
+while CHAT_ID is None:
+    get_chat_id()
+    print("Waiting for Telegram /start...")
+    time.sleep(2)
+
+send("🚀 GRID BOT ACTIVE")
+
+# ================= MAIN =================
 while True:
     price = get_price()
     if not price:
@@ -59,12 +70,12 @@ while True:
 
     print(f"Price: {price}")
 
-    # ================= BASE =================
+    # ===== BASE =====
     if base_price is None:
         base_price = price
-        send(f"📍 BASE: {base_price}")
+        send(f"📍 BASE: {round(base_price,2)}")
 
-    # ================= BUY =================
+    # ===== BUY =====
     if len(positions) < MAX_BUYS and price <= base_price:
         positions.append({"price": price})
 
@@ -80,7 +91,7 @@ while True:
 
         send(f"🟢 BUY {price}")
 
-    # ================= SELL (TP) =================
+    # ===== TP SELL =====
     if positions:
         avg_entry = sum([p["price"] for p in positions]) / len(positions)
         tp_price = avg_entry * (1 + TP_PERCENT)
@@ -103,9 +114,9 @@ while True:
 
             positions = []
             base_price = price
-            send(f"🔄 New Base: {base_price}")
+            send(f"🔄 New Base: {round(base_price,2)}")
 
-    # ================= STOP LOSS =================
+    # ===== STOP LOSS =====
     if positions:
         avg_entry = sum([p["price"] for p in positions]) / len(positions)
         sl_price = avg_entry * (1 - SL_PERCENT)
@@ -127,6 +138,6 @@ while True:
 
             positions = []
             base_price = price
-            send(f"🔄 New Base: {base_price}")
+            send(f"🔄 New Base: {round(base_price,2)}")
 
     time.sleep(CHECK_SPEED)
