@@ -1,90 +1,132 @@
-import asyncio
-import requests
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+import os
+import time
+import random
 
-TOKEN = "WEKA_TOKEN_HAPA"
-CHAT_ID = None
+# ==============================
+# CONFIG (RAILWAY VARIABLES)
+# ==============================
+MODE = os.getenv("MODE", "paper")  # paper / live
+TOKEN = os.getenv("TOKEN")
 
-SYMBOL = "BTC-USDT"
-
-CHECK_SPEED = 2
+BASE_TP_PERCENT = 0.002  # 0.2%
 MAX_BUYS = 5
+GRID_SPACING = 50  # distance ya price
+CAPITAL_PER_TRADE = 0.05  # 5%
 
-active_buys = []
-total_profit = 0
-base = 0
+# ==============================
+# STATE
+# ==============================
+positions = []
+base_price = None
+tp_price = None
+balance = 100  # paper balance
 
-
+# ==============================
+# MOCK PRICE (paper mode)
+# ==============================
 def get_price():
-    try:
-        url = f"https://api.kucoin.com/api/v1/market/orderbook/level1?symbol={SYMBOL}"
-        res = requests.get(url).json()
-        return float(res['data']['price'])
-    except:
-        return None
+    return random.randint(79000, 80000)
 
+# ==============================
+# TREND ANALYSIS (simple)
+# ==============================
+def detect_trend():
+    r = random.random()
+    if r > 0.66:
+        return "up"
+    elif r < 0.33:
+        return "down"
+    return "sideways"
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global CHAT_ID
-    CHAT_ID = update.effective_chat.id
-    await update.message.reply_text("🚀 GRID V6 ACTIVE")
+# ==============================
+# CALCULATE AVERAGE PRICE
+# ==============================
+def average_price():
+    if not positions:
+        return 0
+    return sum(p["price"] for p in positions) / len(positions)
 
+# ==============================
+# CALCULATE TP (dynamic)
+# ==============================
+def calculate_tp(avg, trend):
+    if trend == "up":
+        return avg * 1.0035
+    elif trend == "down":
+        return avg * 1.0015
+    return avg * 1.002
 
-async def run_bot(app):
-    global base, active_buys, total_profit
+# ==============================
+# BUY LOGIC
+# ==============================
+def try_buy(price):
+    global balance
+
+    if len(positions) >= MAX_BUYS:
+        return
+
+    if not positions:
+        positions.append({"price": price})
+        print(f"🟢 BUY @ {price}")
+        return
+
+    last_price = positions[-1]["price"]
+
+    if price <= last_price - GRID_SPACING:
+        positions.append({"price": price})
+        print(f"🟢 BUY @ {price}")
+
+# ==============================
+# SELL LOGIC
+# ==============================
+def try_sell(price):
+    global positions, balance, base_price
+
+    if not positions:
+        return
+
+    avg = average_price()
+    trend = detect_trend()
+    tp = calculate_tp(avg, trend)
+
+    if price >= tp:
+        total_invested = len(positions) * 10
+        profit = total_invested * BASE_TP_PERCENT
+
+        balance += profit
+
+        print("\n🔴 SELL ALL EXECUTED")
+        print(f"💰 Before: ${total_invested}")
+        print(f"💰 After: ${total_invested + profit}")
+        print(f"📈 Profit: +${round(profit,2)}\n")
+
+        positions = []
+        base_price = price
+
+# ==============================
+# MAIN LOOP
+# ==============================
+def run_bot():
+    global base_price
+
+    print("🚀 V7 BOT STARTED")
 
     while True:
         price = get_price()
 
-        if price is None or CHAT_ID is None:
-            await asyncio.sleep(CHECK_SPEED)
-            continue
+        if base_price is None:
+            base_price = price
+            print(f"\n📍 BASE: {base_price}")
 
-        # SET BASE
-        if base == 0:
-            base = price
-            await app.bot.send_message(chat_id=CHAT_ID, text=f"📊 Base: {base}")
-            await asyncio.sleep(CHECK_SPEED)
-            continue
+        print(f"Price: {price}")
 
-        # BUY
-        if price < base and len(active_buys) < MAX_BUYS:
-            active_buys.append(price)
-            await app.bot.send_message(chat_id=CHAT_ID, text=f"🟢 BUY {price}")
+        try_buy(price)
+        try_sell(price)
 
-        # SELL ALL
-        if active_buys:
-            avg = sum(active_buys) / len(active_buys)
-            profit = ((price - avg) / avg) * 100
+        time.sleep(2)
 
-            if profit >= 0.05:
-                total_profit += profit
-
-                await app.bot.send_message(
-                    chat_id=CHAT_ID,
-                    text=f"🔴 SELL {price}\nProfit: {round(profit,4)}%\nTotal: {round(total_profit,4)}%"
-                )
-
-                active_buys = []
-                base = price
-
-                await app.bot.send_message(chat_id=CHAT_ID, text=f"🔄 New Base: {base}")
-
-        await asyncio.sleep(CHECK_SPEED)
-
-
-def main():
-    app = ApplicationBuilder().token(TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-
-    # HII NDIO FIX YA ERROR YAKO 🔥
-    app.job_queue.run_repeating(lambda *_: asyncio.create_task(run_bot(app)), interval=1, first=1)
-
-    print("✅ BOT RUNNING...")
-    app.run_polling()
-
-
+# ==============================
+# START
+# ==============================
 if __name__ == "__main__":
-    main()
+    run_bot()
