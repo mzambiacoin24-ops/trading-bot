@@ -12,18 +12,18 @@ MAX_BUYS = 5
 TP_PERCENT = 0.002
 SL_PERCENT = 0.003
 
-CHECK_SPEED = 3
 GRID_SPACING = 20
-
-positions = []
-base_price = None
-CHAT_ID = None
-started = False
-
-last_buy_time = 0
+CHECK_SPEED = 3
 BUY_COOLDOWN = 10
 
+# ================= STATE =================
+positions = []
+base_price = None
+last_buy_time = 0
 in_trade = False
+
+CHAT_ID = None
+bot_started = False
 
 # ================= TELEGRAM =================
 def get_chat_id():
@@ -71,28 +71,27 @@ while True:
         time.sleep(CHECK_SPEED)
         continue
 
-    print(f"Price: {price}")
+    print("Price:", price)
 
-    if not started:
+    # START MESSAGE (once)
+    if not bot_started:
         send("🚀 GRID BOT ACTIVE")
-        started = True
+        bot_started = True
 
+    # SET BASE
     if base_price is None:
         base_price = price
 
     current_time = time.time()
 
-    # ===== BUY =====
-    if not in_trade:
-        in_trade = True
-
-    if in_trade and len(positions) < MAX_BUYS and current_time - last_buy_time > BUY_COOLDOWN:
+    # ================= BUY =================
+    if len(positions) < MAX_BUYS and (current_time - last_buy_time > BUY_COOLDOWN):
 
         if not positions:
             if price <= base_price:
-                positions.append({"price": price})
-
-                globals()["last_buy_time"] = current_time  # 🔥 FIX
+                positions.append(price)
+                last_buy_time = current_time
+                in_trade = True
 
                 total_capital = MAX_BUYS * TRADE_AMOUNT
                 tp = price * (1 + TP_PERCENT)
@@ -102,20 +101,19 @@ while True:
 💰 Total Capital (Grid): ${total_capital}
 🎯 TP Target: {round(tp,2)}
 
-🟢 BUY {price}""")
+🟢 BUY {round(price,2)}""")
 
         else:
-            last_buy = positions[-1]["price"]
+            last_buy = positions[-1]
 
             if price <= last_buy - GRID_SPACING:
-                positions.append({"price": price})
+                positions.append(price)
+                last_buy_time = current_time
+                send(f"🟢 BUY {round(price,2)}")
 
-                globals()["last_buy_time"] = current_time  # 🔥 FIX
-                send(f"🟢 BUY {price}")
-
-    # ===== SELL =====
+    # ================= SELL =================
     if positions:
-        avg_entry = sum([p["price"] for p in positions]) / len(positions)
+        avg_entry = sum(positions) / len(positions)
         tp_price = avg_entry * (1 + TP_PERCENT)
 
         if price >= tp_price:
@@ -136,21 +134,33 @@ while True:
 
             positions = []
             base_price = price
-            globals()["in_trade"] = False
+            in_trade = False
 
             send(f"🔄 New Base: {round(base_price,2)}")
 
-    # ===== STOP LOSS =====
+    # ================= STOP LOSS =================
     if positions:
-        avg_entry = sum([p["price"] for p in positions]) / len(positions)
+        avg_entry = sum(positions) / len(positions)
         sl_price = avg_entry * (1 - SL_PERCENT)
 
         if price <= sl_price:
-            send("🛑 STOP LOSS HIT")
+            capital = len(positions) * TRADE_AMOUNT
+            loss_percent = ((price - avg_entry) / avg_entry) * 100
+            loss_usd = capital * (loss_percent / 100)
+
+            send(f"""🛑 STOP LOSS HIT
+
+🪙 {SYMBOL}
+💰 Capital Used: ${capital}
+📊 Avg Entry: {round(avg_entry,2)}
+📊 Exit Price: {round(price,2)}
+
+💸 Loss: ${round(loss_usd,2)}
+📉 ROI: {round(loss_percent,2)}%""")
 
             positions = []
             base_price = price
-            globals()["in_trade"] = False
+            in_trade = False
 
             send(f"🔄 New Base: {round(base_price,2)}")
 
