@@ -18,7 +18,12 @@ GRID_SPACING = 20
 positions = []
 base_price = None
 CHAT_ID = None
-started = False  # 🔥 prevent spam
+started = False
+
+last_buy_time = 0
+BUY_COOLDOWN = 10
+
+in_trade = False  # 🔥 NEW (control trade cycle)
 
 # ================= TELEGRAM =================
 def get_chat_id():
@@ -60,9 +65,6 @@ while CHAT_ID is None:
     time.sleep(2)
 
 # ================= MAIN =================
-last_buy_time = 0
-BUY_COOLDOWN = 10
-
 while True:
     price = get_price()
     if not price:
@@ -71,19 +73,20 @@ while True:
 
     print(f"Price: {price}")
 
-    # ===== START MESSAGE (once only) =====
     if not started:
         send("🚀 GRID BOT ACTIVE")
         started = True
 
-    # ===== BASE =====
     if base_price is None:
         base_price = price
 
-    # ===== BUY =====
     current_time = time.time()
 
-    if len(positions) < MAX_BUYS and current_time - last_buy_time > BUY_COOLDOWN:
+    # ===== BUY =====
+    if not in_trade:  # 🔥 only start once
+        in_trade = True
+
+    if in_trade and len(positions) < MAX_BUYS and current_time - last_buy_time > BUY_COOLDOWN:
 
         if not positions:
             if price <= base_price:
@@ -108,7 +111,7 @@ while True:
                 last_buy_time = current_time
                 send(f"🟢 BUY {price}")
 
-    # ===== TP SELL =====
+    # ===== SELL =====
     if positions:
         avg_entry = sum([p["price"] for p in positions]) / len(positions)
         tp_price = avg_entry * (1 + TP_PERCENT)
@@ -131,30 +134,5 @@ while True:
 
             positions = []
             base_price = price
-            send(f"🔄 New Base: {round(base_price,2)}")
-
-    # ===== STOP LOSS =====
-    if positions:
-        avg_entry = sum([p["price"] for p in positions]) / len(positions)
-        sl_price = avg_entry * (1 - SL_PERCENT)
-
-        if price <= sl_price:
-            capital = len(positions) * TRADE_AMOUNT
-            loss_percent = ((price - avg_entry) / avg_entry) * 100
-            loss_usd = capital * (loss_percent / 100)
-
-            send(f"""🛑 STOP LOSS HIT
-
-🪙 {SYMBOL}
-💰 Capital Used: ${capital}
-📊 Avg Entry: {round(avg_entry,2)}
-📊 Exit Price: {round(price,2)}
-
-💸 Loss: ${round(loss_usd,2)}
-📉 ROI: {round(loss_percent,2)}%""")
-
-            positions = []
-            base_price = price
-            send(f"🔄 New Base: {round(base_price,2)}")
-
-    time.sleep(CHECK_SPEED)
+            in_trade = False  # 🔥 reset only after sell
+            send(f"
