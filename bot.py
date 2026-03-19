@@ -13,6 +13,7 @@ TP_PERCENT = 0.002
 SL_PERCENT = 0.003
 
 CHECK_SPEED = 3
+GRID_SPACING = 20  # ✅ NEW (control buy distance)
 
 positions = []
 base_price = None
@@ -53,7 +54,6 @@ def get_price():
 # ================= START =================
 print("🚀 BOT STARTED")
 
-# pata chat id mapema
 while CHAT_ID is None:
     get_chat_id()
     print("Waiting for Telegram /start...")
@@ -75,21 +75,30 @@ while True:
         base_price = price
         send(f"📍 BASE: {round(base_price,2)}")
 
-    # ===== BUY =====
-    if len(positions) < MAX_BUYS and price <= base_price:
-        positions.append({"price": price})
+    # ===== BUY (FIXED) =====
+    if len(positions) < MAX_BUYS:
 
-        if len(positions) == 1:
-            total_capital = MAX_BUYS * TRADE_AMOUNT
-            tp = price * (1 + TP_PERCENT)
+        if not positions:
+            if price <= base_price:
+                positions.append({"price": price})
 
-            send(f"""📍 BASE: {round(base_price,2)}
+                total_capital = MAX_BUYS * TRADE_AMOUNT
+                tp = price * (1 + TP_PERCENT)
+
+                send(f"""📍 BASE: {round(base_price,2)}
 
 💰 Total Capital (Grid): ${total_capital}
 
 🎯 TP Target: {round(tp,2)}""")
 
-        send(f"🟢 BUY {price}")
+                send(f"🟢 BUY {price}")
+
+        else:
+            last_buy = positions[-1]["price"]
+
+            if price <= last_buy - GRID_SPACING:
+                positions.append({"price": price})
+                send(f"🟢 BUY {price}")
 
     # ===== TP SELL =====
     if positions:
