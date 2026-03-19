@@ -1,132 +1,101 @@
 import os
 import time
-import random
+import requests
 
 # ==============================
-# CONFIG (RAILWAY VARIABLES)
+# CONFIG
 # ==============================
 MODE = os.getenv("MODE", "paper")  # paper / live
 TOKEN = os.getenv("TOKEN")
 
-BASE_TP_PERCENT = 0.002  # 0.2%
-MAX_BUYS = 5
-GRID_SPACING = 50  # distance ya price
-CAPITAL_PER_TRADE = 0.05  # 5%
+SYMBOL = "BTC-USDT"
+TRADE_AMOUNT = 10  # dollar
+
+TP_PERCENT = 0.002  # 0.2%
+SL_PERCENT = 0.003  # 0.3%
+
+CHECK_SPEED = 3
 
 # ==============================
 # STATE
 # ==============================
-positions = []
-base_price = None
-tp_price = None
+in_position = False
+buy_price = 0
+
 balance = 100  # paper balance
 
 # ==============================
-# MOCK PRICE (paper mode)
+# GET REAL PRICE (KUCOIN)
 # ==============================
 def get_price():
-    return random.randint(79000, 80000)
+    try:
+        url = f"https://api.kucoin.com/api/v1/market/orderbook/level1?symbol={SYMBOL}"
+        res = requests.get(url).json()
+        return float(res['data']['price'])
+    except:
+        return None
 
 # ==============================
-# TREND ANALYSIS (simple)
+# BUY
 # ==============================
-def detect_trend():
-    r = random.random()
-    if r > 0.66:
-        return "up"
-    elif r < 0.33:
-        return "down"
-    return "sideways"
+def buy(price):
+    global in_position, buy_price, balance
 
-# ==============================
-# CALCULATE AVERAGE PRICE
-# ==============================
-def average_price():
-    if not positions:
-        return 0
-    return sum(p["price"] for p in positions) / len(positions)
-
-# ==============================
-# CALCULATE TP (dynamic)
-# ==============================
-def calculate_tp(avg, trend):
-    if trend == "up":
-        return avg * 1.0035
-    elif trend == "down":
-        return avg * 1.0015
-    return avg * 1.002
-
-# ==============================
-# BUY LOGIC
-# ==============================
-def try_buy(price):
-    global balance
-
-    if len(positions) >= MAX_BUYS:
-        return
-
-    if not positions:
-        positions.append({"price": price})
-        print(f"🟢 BUY @ {price}")
-        return
-
-    last_price = positions[-1]["price"]
-
-    if price <= last_price - GRID_SPACING:
-        positions.append({"price": price})
+    if MODE == "paper":
+        buy_price = price
+        in_position = True
         print(f"🟢 BUY @ {price}")
 
+    else:
+        print("LIVE BUY (utaongezwa baadae)")
+
 # ==============================
-# SELL LOGIC
+# SELL
 # ==============================
-def try_sell(price):
-    global positions, balance, base_price
+def sell(price):
+    global in_position, balance
 
-    if not positions:
-        return
+    profit = price - buy_price
 
-    avg = average_price()
-    trend = detect_trend()
-    tp = calculate_tp(avg, trend)
-
-    if price >= tp:
-        total_invested = len(positions) * 10
-        profit = total_invested * BASE_TP_PERCENT
-
+    if MODE == "paper":
         balance += profit
+        print("🔴 SELL EXECUTED")
+        print(f"💰 Balance: {round(balance,2)}")
 
-        print("\n🔴 SELL ALL EXECUTED")
-        print(f"💰 Before: ${total_invested}")
-        print(f"💰 After: ${total_invested + profit}")
-        print(f"📈 Profit: +${round(profit,2)}\n")
+    else:
+        print("LIVE SELL (utaongezwa baadae)")
 
-        positions = []
-        base_price = price
+    in_position = False
 
 # ==============================
 # MAIN LOOP
 # ==============================
 def run_bot():
-    global base_price
+    global in_position
 
-    print("🚀 V7 BOT STARTED")
+    print("🚀 BOT STARTED")
 
     while True:
         price = get_price()
 
-        if base_price is None:
-            base_price = price
-            print(f"\n📍 BASE: {base_price}")
+        if price is None:
+            print("Error kupata price...")
+            time.sleep(CHECK_SPEED)
+            continue
 
         print(f"Price: {price}")
 
-        try_buy(price)
-        try_sell(price)
+        if not in_position:
+            buy(price)
 
-        time.sleep(2)
+        else:
+            tp = buy_price * (1 + TP_PERCENT)
+            sl = buy_price * (1 - SL_PERCENT)
+
+            if price >= tp or price <= sl:
+                sell(price)
+
+        time.sleep(CHECK_SPEED)
 
 # ==============================
-# START
-# ==============================
-if __name__ == "__main__":
-    run_bot()
+run_bot()
