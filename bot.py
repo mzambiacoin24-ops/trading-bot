@@ -23,7 +23,7 @@ started = False
 last_buy_time = 0
 BUY_COOLDOWN = 10
 
-in_trade = False  # 🔥 NEW (control trade cycle)
+in_trade = False
 
 # ================= TELEGRAM =================
 def get_chat_id():
@@ -83,7 +83,7 @@ while True:
     current_time = time.time()
 
     # ===== BUY =====
-    if not in_trade:  # 🔥 only start once
+    if not in_trade:
         in_trade = True
 
     if in_trade and len(positions) < MAX_BUYS and current_time - last_buy_time > BUY_COOLDOWN:
@@ -91,7 +91,8 @@ while True:
         if not positions:
             if price <= base_price:
                 positions.append({"price": price})
-                last_buy_time = current_time
+
+                globals()["last_buy_time"] = current_time  # 🔥 FIX
 
                 total_capital = MAX_BUYS * TRADE_AMOUNT
                 tp = price * (1 + TP_PERCENT)
@@ -108,7 +109,8 @@ while True:
 
             if price <= last_buy - GRID_SPACING:
                 positions.append({"price": price})
-                last_buy_time = current_time
+
+                globals()["last_buy_time"] = current_time  # 🔥 FIX
                 send(f"🟢 BUY {price}")
 
     # ===== SELL =====
@@ -134,5 +136,22 @@ while True:
 
             positions = []
             base_price = price
-            in_trade = False  # 🔥 reset only after sell
-            send(f"
+            globals()["in_trade"] = False
+
+            send(f"🔄 New Base: {round(base_price,2)}")
+
+    # ===== STOP LOSS =====
+    if positions:
+        avg_entry = sum([p["price"] for p in positions]) / len(positions)
+        sl_price = avg_entry * (1 - SL_PERCENT)
+
+        if price <= sl_price:
+            send("🛑 STOP LOSS HIT")
+
+            positions = []
+            base_price = price
+            globals()["in_trade"] = False
+
+            send(f"🔄 New Base: {round(base_price,2)}")
+
+    time.sleep(CHECK_SPEED)
