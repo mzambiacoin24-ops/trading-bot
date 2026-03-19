@@ -9,56 +9,64 @@ SYMBOL = "BTC-USDT"
 TRADE_AMOUNT = 10
 MAX_BUYS = 5
 
-TP_PERCENT = 0.002
+BASE_TP = 0.002
 SL_PERCENT = 0.003
 
 GRID_SPACING = 20
 CHECK_SPEED = 3
-BUY_COOLDOWN = 10
 
 # ================= STATE =================
 positions = []
 base_price = None
-last_buy_time = 0
-in_trade = False
-
 CHAT_ID = None
-bot_started = False
+
+last_buy_time = 0
+BUY_COOLDOWN = 8
+
+started = False
 
 # ================= TELEGRAM =================
 def get_chat_id():
     global CHAT_ID
     try:
-        url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
-        data = requests.get(url).json()
+        data = requests.get(f"https://api.telegram.org/bot{TOKEN}/getUpdates").json()
         if data["result"]:
             CHAT_ID = data["result"][-1]["message"]["chat"]["id"]
     except:
         pass
 
 def send(msg):
-    if not CHAT_ID:
-        return
-    try:
+    if CHAT_ID:
         requests.post(
             f"https://api.telegram.org/bot{TOKEN}/sendMessage",
             json={"chat_id": CHAT_ID, "text": msg}
         )
-    except:
-        pass
 
 # ================= PRICE =================
 def get_price():
     try:
-        url = "https://api.kucoin.com/api/v1/market/orderbook/level1"
-        params = {"symbol": SYMBOL}
-        res = requests.get(url, params=params).json()
+        res = requests.get(
+            "https://api.kucoin.com/api/v1/market/orderbook/level1",
+            params={"symbol": SYMBOL}
+        ).json()
         return float(res["data"]["price"])
     except:
         return None
 
+# ================= TREND =================
+price_history = []
+
+def detect_trend():
+    if len(price_history) < 5:
+        return "SIDE"
+    if price_history[-1] > price_history[-5]:
+        return "UP"
+    elif price_history[-1] < price_history[-5]:
+        return "DOWN"
+    return "SIDE"
+
 # ================= START =================
-print("🚀 BOT STARTED")
+print("🚀 V7 FULL STARTED")
 
 while CHAT_ID is None:
     get_chat_id()
@@ -71,30 +79,38 @@ while True:
         time.sleep(CHECK_SPEED)
         continue
 
-    print("Price:", price)
+    price_history.append(price)
+    if len(price_history) > 20:
+        price_history.pop(0)
 
-    # START MESSAGE (once)
-    if not bot_started:
-        send("🚀 GRID BOT ACTIVE")
-        bot_started = True
+    trend = detect_trend()
 
-    # SET BASE
+    if not started:
+        send("🚀 GRID V7 ACTIVE")
+        started = True
+
     if base_price is None:
         base_price = price
 
     current_time = time.time()
 
     # ================= BUY =================
-    if len(positions) < MAX_BUYS and (current_time - last_buy_time > BUY_COOLDOWN):
+    if len(positions) < MAX_BUYS and current_time - last_buy_time > BUY_COOLDOWN:
 
         if not positions:
             if price <= base_price:
                 positions.append(price)
                 last_buy_time = current_time
-                in_trade = True
 
                 total_capital = MAX_BUYS * TRADE_AMOUNT
-                tp = price * (1 + TP_PERCENT)
+
+                # dynamic TP
+                if trend == "UP":
+                    tp = price * 1.004
+                elif trend == "DOWN":
+                    tp = price * 1.0015
+                else:
+                    tp = price * (1 + BASE_TP)
 
                 send(f"""📍 BASE: {round(base_price,2)}
 
@@ -114,7 +130,13 @@ while True:
     # ================= SELL =================
     if positions:
         avg_entry = sum(positions) / len(positions)
-        tp_price = avg_entry * (1 + TP_PERCENT)
+
+        if trend == "UP":
+            tp_price = avg_entry * 1.004
+        elif trend == "DOWN":
+            tp_price = avg_entry * 1.0015
+        else:
+            tp_price = avg_entry * (1 + BASE_TP)
 
         if price >= tp_price:
             capital = len(positions) * TRADE_AMOUNT
@@ -134,8 +156,6 @@ while True:
 
             positions = []
             base_price = price
-            in_trade = False
-
             send(f"🔄 New Base: {round(base_price,2)}")
 
     # ================= STOP LOSS =================
@@ -160,8 +180,6 @@ while True:
 
             positions = []
             base_price = price
-            in_trade = False
-
             send(f"🔄 New Base: {round(base_price,2)}")
 
     time.sleep(CHECK_SPEED)
