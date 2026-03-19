@@ -13,11 +13,12 @@ TP_PERCENT = 0.002
 SL_PERCENT = 0.003
 
 CHECK_SPEED = 3
-GRID_SPACING = 20  # ✅ NEW (control buy distance)
+GRID_SPACING = 20
 
 positions = []
 base_price = None
 CHAT_ID = None
+started = False  # 🔥 prevent spam
 
 # ================= TELEGRAM =================
 def get_chat_id():
@@ -56,12 +57,12 @@ print("🚀 BOT STARTED")
 
 while CHAT_ID is None:
     get_chat_id()
-    print("Waiting for Telegram /start...")
     time.sleep(2)
 
-send("🚀 GRID BOT ACTIVE")
-
 # ================= MAIN =================
+last_buy_time = 0
+BUY_COOLDOWN = 10
+
 while True:
     price = get_price()
     if not price:
@@ -70,17 +71,24 @@ while True:
 
     print(f"Price: {price}")
 
+    # ===== START MESSAGE (once only) =====
+    if not started:
+        send("🚀 GRID BOT ACTIVE")
+        started = True
+
     # ===== BASE =====
     if base_price is None:
         base_price = price
-        send(f"📍 BASE: {round(base_price,2)}")
 
-    # ===== BUY (FIXED) =====
-    if len(positions) < MAX_BUYS:
+    # ===== BUY =====
+    current_time = time.time()
+
+    if len(positions) < MAX_BUYS and current_time - last_buy_time > BUY_COOLDOWN:
 
         if not positions:
             if price <= base_price:
                 positions.append({"price": price})
+                last_buy_time = current_time
 
                 total_capital = MAX_BUYS * TRADE_AMOUNT
                 tp = price * (1 + TP_PERCENT)
@@ -88,16 +96,16 @@ while True:
                 send(f"""📍 BASE: {round(base_price,2)}
 
 💰 Total Capital (Grid): ${total_capital}
+🎯 TP Target: {round(tp,2)}
 
-🎯 TP Target: {round(tp,2)}""")
-
-                send(f"🟢 BUY {price}")
+🟢 BUY {price}""")
 
         else:
             last_buy = positions[-1]["price"]
 
             if price <= last_buy - GRID_SPACING:
                 positions.append({"price": price})
+                last_buy_time = current_time
                 send(f"🟢 BUY {price}")
 
     # ===== TP SELL =====
