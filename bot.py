@@ -24,6 +24,8 @@ active_symbol = None
 
 price_data = {c: [] for c in COINS}
 
+last_market_msg_id = None
+
 # ================= TELEGRAM =================
 def get_chat_id():
     global CHAT_ID
@@ -40,6 +42,30 @@ def send(msg):
             f"https://api.telegram.org/bot{TOKEN}/sendMessage",
             json={"chat_id": CHAT_ID, "text": msg}
         )
+
+def market_watch(msg):
+    global last_market_msg_id
+
+    try:
+        if last_market_msg_id is None:
+            res = requests.post(
+                f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                json={"chat_id": CHAT_ID, "text": msg}
+            ).json()
+
+            last_market_msg_id = res["result"]["message_id"]
+
+        else:
+            requests.post(
+                f"https://api.telegram.org/bot{TOKEN}/editMessageText",
+                json={
+                    "chat_id": CHAT_ID,
+                    "message_id": last_market_msg_id,
+                    "text": msg
+                }
+            )
+    except:
+        pass
 
 # ================= PRICE =================
 def get_price(symbol):
@@ -81,18 +107,18 @@ def pick_best_coin():
     return best
 
 # ================= START =================
-print("🚀 V8 MULTI-COIN STARTED")
+print("🚀 V9 STARTED")
 
 while CHAT_ID is None:
     get_chat_id()
     time.sleep(2)
 
-send("🚀 GRID V8 ACTIVE")
+send("🚀 GRID V9 ACTIVE")
 
 # ================= MAIN =================
 while True:
 
-    # collect prices
+    # ===== COLLECT DATA =====
     for coin in COINS:
         price = get_price(coin)
         if price:
@@ -100,11 +126,11 @@ while True:
             if len(price_data[coin]) > 20:
                 price_data[coin].pop(0)
 
-    # pick best coin
+    # ===== PICK COIN =====
     if active_symbol is None:
         active_symbol = pick_best_coin()
         if active_symbol:
-            send(f"🔥 Selected Coin: {active_symbol}")
+            send(f"🔥 Selected: {active_symbol}")
 
     if not active_symbol:
         time.sleep(CHECK_SPEED)
@@ -113,11 +139,10 @@ while True:
     price = price_data[active_symbol][-1]
     trend = detect_trend(price_data[active_symbol])
 
-    # ===== BASE =====
     if base_price is None:
         base_price = price
 
-    # ===== BUY =====
+    # ================= BUY =================
     if len(positions) < MAX_BUYS and trend != "DOWN":
 
         if not positions and price <= base_price:
@@ -140,7 +165,7 @@ while True:
                 positions.append(price)
                 send(f"🟢 BUY {round(price,2)}")
 
-    # ===== SELL =====
+    # ================= SELL =================
     if positions:
         avg = sum(positions) / len(positions)
         tp_price = avg * (1 + TP_PERCENT)
@@ -149,11 +174,12 @@ while True:
             capital = len(positions) * TRADE_AMOUNT
             profit = capital * ((price - avg) / avg)
 
-            send(f"""📤 CLOSED
+            send(f"""📤 TRADE CLOSED
 
 🪙 {active_symbol}
-💰 ${capital}
-📊 Avg: {round(avg,2)}
+💰 Capital: ${capital}
+📊 Entries: {len(positions)}
+📊 Avg Entry: {round(avg,2)}
 📊 Exit: {round(price,2)}
 
 💵 Profit: ${round(profit,2)}""")
@@ -162,7 +188,7 @@ while True:
             base_price = price
             active_symbol = None
 
-    # ===== STOP LOSS =====
+    # ================= STOP LOSS =================
     if positions:
         avg = sum(positions) / len(positions)
         sl = avg * (1 - SL_PERCENT)
@@ -174,20 +200,20 @@ while True:
             send(f"""🛑 STOP LOSS
 
 🪙 {active_symbol}
-💰 ${capital}
+💰 Capital: ${capital}
 📉 Loss: ${round(loss,2)}""")
 
             positions = []
             base_price = price
             active_symbol = None
 
-    # ===== MONITOR OTHER COINS =====
-    msg = "📊 Market Watch:\n"
+    # ================= MARKET WATCH =================
+    msg = "📊 Market Watch (Live):\n"
     for coin in COINS:
         if price_data[coin]:
             p = price_data[coin][-1]
             msg += f"{coin}: {round(p,2)}\n"
 
-    send(msg)
+    market_watch(msg)
 
     time.sleep(CHECK_SPEED)
