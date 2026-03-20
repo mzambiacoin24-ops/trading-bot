@@ -5,11 +5,12 @@ import requests
 # ================= CONFIG =================
 TOKEN = os.getenv("TOKEN")
 
-SYMBOL = "BTC-USDT"
+COINS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT"]
+
 TRADE_AMOUNT = 10
 MAX_BUYS = 5
 
-BASE_TP = 0.002
+TP_PERCENT = 0.002
 SL_PERCENT = 0.003
 
 GRID_SPACING = 20
@@ -19,11 +20,9 @@ CHECK_SPEED = 3
 positions = []
 base_price = None
 CHAT_ID = None
+active_symbol = None
 
-last_buy_time = 0
-BUY_COOLDOWN = 8
-
-started = False
+price_data = {c: [] for c in COINS}
 
 # ================= TELEGRAM =================
 def get_chat_id():
@@ -43,143 +42,152 @@ def send(msg):
         )
 
 # ================= PRICE =================
-def get_price():
+def get_price(symbol):
     try:
         res = requests.get(
             "https://api.kucoin.com/api/v1/market/orderbook/level1",
-            params={"symbol": SYMBOL}
+            params={"symbol": symbol}
         ).json()
         return float(res["data"]["price"])
     except:
         return None
 
 # ================= TREND =================
-price_history = []
-
-def detect_trend():
-    if len(price_history) < 5:
+def detect_trend(history):
+    if len(history) < 5:
         return "SIDE"
-    if price_history[-1] > price_history[-5]:
+    if history[-1] > history[-5]:
         return "UP"
-    elif price_history[-1] < price_history[-5]:
+    elif history[-1] < history[-5]:
         return "DOWN"
     return "SIDE"
 
+# ================= BEST COIN =================
+def pick_best_coin():
+    best = None
+    best_move = 0
+
+    for coin in COINS:
+        h = price_data[coin]
+        if len(h) < 5:
+            continue
+
+        move = abs(h[-1] - h[-5])
+
+        if move > best_move:
+            best_move = move
+            best = coin
+
+    return best
+
 # ================= START =================
-print("🚀 V7 FULL STARTED")
+print("🚀 V8 MULTI-COIN STARTED")
 
 while CHAT_ID is None:
     get_chat_id()
     time.sleep(2)
 
+send("🚀 GRID V8 ACTIVE")
+
 # ================= MAIN =================
 while True:
-    price = get_price()
-    if not price:
+
+    # collect prices
+    for coin in COINS:
+        price = get_price(coin)
+        if price:
+            price_data[coin].append(price)
+            if len(price_data[coin]) > 20:
+                price_data[coin].pop(0)
+
+    # pick best coin
+    if active_symbol is None:
+        active_symbol = pick_best_coin()
+        if active_symbol:
+            send(f"🔥 Selected Coin: {active_symbol}")
+
+    if not active_symbol:
         time.sleep(CHECK_SPEED)
         continue
 
-    price_history.append(price)
-    if len(price_history) > 20:
-        price_history.pop(0)
+    price = price_data[active_symbol][-1]
+    trend = detect_trend(price_data[active_symbol])
 
-    trend = detect_trend()
-
-    if not started:
-        send("🚀 GRID V7 ACTIVE")
-        started = True
-
+    # ===== BASE =====
     if base_price is None:
         base_price = price
 
-    current_time = time.time()
+    # ===== BUY =====
+    if len(positions) < MAX_BUYS and trend != "DOWN":
 
-    # ================= BUY =================
-    if len(positions) < MAX_BUYS and current_time - last_buy_time > BUY_COOLDOWN:
+        if not positions and price <= base_price:
+            positions.append(price)
 
-        if not positions:
-            if price <= base_price:
-                positions.append(price)
-                last_buy_time = current_time
+            total_capital = MAX_BUYS * TRADE_AMOUNT
+            tp = price * (1 + TP_PERCENT)
 
-                total_capital = MAX_BUYS * TRADE_AMOUNT
+            send(f"""📍 {active_symbol}
 
-                # dynamic TP
-                if trend == "UP":
-                    tp = price * 1.004
-                elif trend == "DOWN":
-                    tp = price * 1.0015
-                else:
-                    tp = price * (1 + BASE_TP)
-
-                send(f"""📍 BASE: {round(base_price,2)}
-
-💰 Total Capital (Grid): ${total_capital}
-🎯 TP Target: {round(tp,2)}
+💰 Capital: ${total_capital}
+🎯 TP: {round(tp,2)}
 
 🟢 BUY {round(price,2)}""")
 
-        else:
+        elif positions:
             last_buy = positions[-1]
 
             if price <= last_buy - GRID_SPACING:
                 positions.append(price)
-                last_buy_time = current_time
                 send(f"🟢 BUY {round(price,2)}")
 
-    # ================= SELL =================
+    # ===== SELL =====
     if positions:
-        avg_entry = sum(positions) / len(positions)
-
-        if trend == "UP":
-            tp_price = avg_entry * 1.004
-        elif trend == "DOWN":
-            tp_price = avg_entry * 1.0015
-        else:
-            tp_price = avg_entry * (1 + BASE_TP)
+        avg = sum(positions) / len(positions)
+        tp_price = avg * (1 + TP_PERCENT)
 
         if price >= tp_price:
             capital = len(positions) * TRADE_AMOUNT
-            profit_percent = ((price - avg_entry) / avg_entry) * 100
-            profit_usd = capital * (profit_percent / 100)
+            profit = capital * ((price - avg) / avg)
 
-            send(f"""📤 TRADE CLOSED
+            send(f"""📤 CLOSED
 
-🪙 {SYMBOL}
-💰 Capital Used: ${capital}
-📊 Entries: {len(positions)}
-📊 Avg Entry: {round(avg_entry,2)}
-📊 Exit Price: {round(price,2)}
+🪙 {active_symbol}
+💰 ${capital}
+📊 Avg: {round(avg,2)}
+📊 Exit: {round(price,2)}
 
-💵 Profit: +${round(profit_usd,2)}
-📈 ROI: +{round(profit_percent,2)}%""")
+💵 Profit: ${round(profit,2)}""")
 
             positions = []
             base_price = price
-            send(f"🔄 New Base: {round(base_price,2)}")
+            active_symbol = None
 
-    # ================= STOP LOSS =================
+    # ===== STOP LOSS =====
     if positions:
-        avg_entry = sum(positions) / len(positions)
-        sl_price = avg_entry * (1 - SL_PERCENT)
+        avg = sum(positions) / len(positions)
+        sl = avg * (1 - SL_PERCENT)
 
-        if price <= sl_price:
+        if price <= sl:
             capital = len(positions) * TRADE_AMOUNT
-            loss_percent = ((price - avg_entry) / avg_entry) * 100
-            loss_usd = capital * (loss_percent / 100)
+            loss = capital * ((price - avg) / avg)
 
-            send(f"""🛑 STOP LOSS HIT
+            send(f"""🛑 STOP LOSS
 
-🪙 {SYMBOL}
-💰 Capital Used: ${capital}
-📊 Avg Entry: {round(avg_entry,2)}
-📊 Exit Price: {round(price,2)}
-
-💸 Loss: ${round(loss_usd,2)}
-📉 ROI: {round(loss_percent,2)}%""")
+🪙 {active_symbol}
+💰 ${capital}
+📉 Loss: ${round(loss,2)}""")
 
             positions = []
             base_price = price
-            send(f"🔄 New Base: {round(base_price,2)}")
+            active_symbol = None
+
+    # ===== MONITOR OTHER COINS =====
+    msg = "📊 Market Watch:\n"
+    for coin in COINS:
+        if price_data[coin]:
+            p = price_data[coin][-1]
+            msg += f"{coin}: {round(p,2)}\n"
+
+    send(msg)
 
     time.sleep(CHECK_SPEED)
