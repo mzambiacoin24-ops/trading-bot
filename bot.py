@@ -10,8 +10,8 @@ COINS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT"]
 TRADE_AMOUNT = 10
 MAX_BUYS = 5
 
-TP_PERCENT = 0.007   # 🔥 profit kubwa
-SL_PERCENT = 0.012   # 🔥 SL ndogo kidogo
+TP_PERCENT = 0.007
+SL_PERCENT = 0.012
 
 GRID_STEP = 20
 CHECK_SPEED = 3
@@ -123,7 +123,7 @@ while True:
             if len(price_data[coin]) > 20:
                 price_data[coin].pop(0)
 
-    # ===== CHOOSE COIN (FIXED) =====
+    # ===== CHOOSE COIN =====
     if not in_trade and active_symbol is None:
         active_symbol = pick_best_coin()
 
@@ -135,7 +135,9 @@ while True:
     trend = detect_trend(price_data[active_symbol])
 
     # ================= OPEN GRID =================
-    if not in_trade and trend == "UP" and len(positions) == 0:
+    if not in_trade and trend == "UP":
+        in_trade = True   # 🔥 FIX YA DUPLICATE (imepandishwa juu)
+
         base_price = price
         positions = []
 
@@ -160,9 +162,6 @@ while True:
             msg += f"🟢 BUY {round(p,2)}\n"
 
         send(msg)
-
-        in_trade = True
-        time.sleep(2)   # 🔥 FIX duplicate
 
     # ================= CLOSE ALL =================
     if in_trade and positions:
