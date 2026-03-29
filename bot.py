@@ -5,145 +5,107 @@ from binance.client import Client
 
 # ================= CONFIG =================
 TOKEN = os.getenv("TOKEN")
-
 API_KEY = os.getenv("API_KEY")
 SECRET_KEY = os.getenv("SECRET_KEY")
 
-print("API:", API_KEY)
-print("SECRET:", SECRET_KEY)
+CHAT_ID = None
 
 client = Client(API_KEY, SECRET_KEY)
 client.API_URL = "https://testnet.binance.vision/api"
 
-
-COINS = ["SOLUSDT"]
-
+SYMBOL = "SOLUSDT"
 TRADE_AMOUNT = 10
-MAX_BUYS = 5
-
 TP_PERCENT = 0.015
-SL_PERCENT = 0.007
+CHECK_SPEED = 5
 
-GRID_STEP = 1.5
-CHECK_SPEED = 3
-
-# ================= STATE =================
-positions = []
-CHAT_ID = None
 in_trade = False
+buy_price = 0
 
 # ================= TELEGRAM =================
-def get_chat_id():
-    global CHAT_ID
-    try:
-        data = requests.get(f"https://api.telegram.org/bot{TOKEN}/getUpdates").json()
-        if data["result"]:
-            CHAT_ID = data["result"][-1]["message"]["chat"]["id"]
-    except:
-        pass
-
 def send(msg):
     if CHAT_ID:
-        requests.post(
-            f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-            json={"chat_id": CHAT_ID, "text": msg}
+        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+        requests.post(url, json={"chat_id": CHAT_ID, "text": msg})
+
+def get_chat_id():
+    global CHAT_ID
+    url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
+    data = requests.get(url).json()
+    if data["result"]:
+        CHAT_ID = data["result"][-1]["message"]["chat"]["id"]
+
+# ================= PRICE =================
+def get_price():
+    data = client.get_symbol_ticker(symbol=SYMBOL)
+    return float(data["price"])
+
+# ================= BUY =================
+def buy():
+    global in_trade, buy_price
+
+    try:
+        price = get_price()
+
+        order = client.order_market_buy(
+            symbol=SYMBOL,
+            quoteOrderQty=TRADE_AMOUNT
         )
 
-# ================= PRICE (BINANCE) =================
-def get_price():
-    try:
-        data = client.get_symbol_ticker(symbol="SOLUSDT")
-        return float(data["price"])
-    except:
-        return None
-
-# ================= START =================
-print("🚀 BOT STARTED")
-
-while CHAT_ID is None:
-    get_chat_id()
-    time.sleep(2)
-
-send("🚀 BOT ACTIVE (BINANCE)")
-
-# ================= MAIN =================
-while True:
-
-    price = get_price()
-
-    if not price:
-        time.sleep(CHECK_SPEED)
-        continue
-
-    # ================= BUY =================
-    if not in_trade:
-        positions = []
-
-        for i in range(MAX_BUYS):
-            buy_price = price - (i * GRID_STEP)
-
-            try:
-                client.order_market_buy(
-                    symbol="SOLUSDT",
-                    quantity=0.1
-                )
-            except Exception as e:
-                send(f"❌ Buy Error: {e}")
-
-            positions.append(buy_price)
-
-        avg = sum(positions) / len(positions)
-        tp = avg * (1 + TP_PERCENT)
-
-        send(f"""🟢 BUY START
-
-Avg: {round(avg,2)}
-TP: {round(tp,2)}
-""")
-
+        buy_price = price
         in_trade = True
 
-    # ================= TP =================
-    if in_trade and positions:
-        avg = sum(positions) / len(positions)
-        tp_price = avg * (1 + TP_PERCENT)
+        tp = buy_price * (1 + TP_PERCENT)
 
-        if price >= tp_price:
-            try:
-                client.order_market_sell(
-                    symbol="SOLUSDT",
-                    quantity=0.1 * len(positions)
-                )
-            except Exception as e:
-                send(f"❌ Sell Error: {e}")
+        send(f"🟢 BUY START\n\nPrice: {buy_price:.2f}\nTP: {tp:.2f}")
 
-            profit = (price - avg) * len(positions)
+    except Exception as e:
+        send(f"❌ BUY ERROR: {e}")
 
-            send(f"""💰 TP HIT
+# ================= SELL =================
+def sell():
+    global in_trade, buy_price
 
-Profit: {round(profit,2)}
-""")
+    try:
+        asset = SYMBOL.replace("USDT", "")
+        balance = client.get_asset_balance(asset=asset)
 
-            positions = []
+        qty = float(balance["free"])
+
+        if qty > 0:
+            client.order_market_sell(
+                symbol=SYMBOL,
+                quantity=round(qty, 3)
+            )
+
+            price = get_price()
+            profit = (price - buy_price) * (TRADE_AMOUNT / buy_price)
+
+            send(f"💰 TP HIT\n\nSell: {price:.2f}\nProfit: {profit:.2f}")
+
             in_trade = False
 
-    # ================= SL =================
-    if in_trade and positions:
-        avg = sum(positions) / len(positions)
-        sl = avg * (1 - SL_PERCENT)
+    except Exception as e:
+        send(f"❌ SELL ERROR: {e}")
 
-        if price <= sl:
-            try:
-                client.order_market_sell(
-                    symbol="SOLUSDT",
-                    quantity=0.1 * len(positions)
-                )
-            except Exception as e:
-                send(f"❌ SL Error: {e}")
+# ================= MAIN LOOP =================
+get_chat_id()
+send("🚀 BOT ACTIVE")
 
-            send("🛑 STOP LOSS")
+while True:
+    try:
+        price = get_price()
 
-            positions = []
-            in_trade = False
+        if not in_trade:
+            buy()
 
-    time.sleep(CHECK_SPEED)
+        else:
+            tp_price = buy_price * (1 + TP_PERCENT)
+
+            if price >= tp_price:
+                sell()
+
+        time.sleep(CHECK_SPEED)
+
+    except Exception as e:
+        send(f"⚠️ ERROR: {e}")
+        time.sleep(5)
