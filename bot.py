@@ -5,16 +5,18 @@ import requests
 # ================= CONFIG =================
 TOKEN = os.getenv("TOKEN")
 
-COINS = ["SOL-USDT"]   # 🔥 SOL ONLY
+COINS = ["SOL-USDT"]
 
 TRADE_AMOUNT = 10
 MAX_BUYS = 5
 
-TP_PERCENT = 0.007
+TP_PERCENT = 0.01      # 🔥 profit kubwa
 SL_PERCENT = 0.012
 
-GRID_STEP = 1.5   # 🔥 imepunguzwa kwa SOL
+GRID_STEP = 1.5
 CHECK_SPEED = 3
+
+COOLDOWN_AFTER_TP = 30   # 🔥 inazuia trade spam
 
 # ================= STATE =================
 positions = []
@@ -23,6 +25,7 @@ CHAT_ID = None
 active_symbol = None
 in_trade = False
 trade_opened = False
+last_trade_close_time = 0
 
 price_data = {c: [] for c in COINS}
 last_market_msg_id = None
@@ -86,23 +89,18 @@ def detect_trend(h):
         return "DOWN"
     return "SIDE"
 
-# ================= PICK COIN =================
-def pick_best_coin():
-    return COINS[0]   # 🔥 always SOL
-
 # ================= START =================
-print("🚀 V10 SOL STARTED")
+print("🚀 V10 SOL FINAL STARTED")
 
 while CHAT_ID is None:
     get_chat_id()
     time.sleep(2)
 
-send("🚀 GRID V10 (SOL ONLY) ACTIVE")
+send("🚀 GRID V10 (SOL FINAL) ACTIVE")
 
 # ================= MAIN =================
 while True:
 
-    # ===== COLLECT PRICE =====
     price = get_price("SOL-USDT")
     if price:
         price_data["SOL-USDT"].append(price)
@@ -120,7 +118,12 @@ while True:
     trend = detect_trend(price_data["SOL-USDT"])
 
     # ================= OPEN GRID =================
-    if not in_trade and trend == "UP" and not trade_opened:
+    if (
+        not in_trade
+        and trend == "UP"
+        and not trade_opened
+        and (time.time() - last_trade_close_time > COOLDOWN_AFTER_TP)
+    ):
 
         trade_opened = True
         in_trade = True
@@ -172,6 +175,7 @@ while True:
             in_trade = False
             active_symbol = None
             trade_opened = False
+            last_trade_close_time = time.time()   # 🔥 cooldown start
 
     # ================= STOP LOSS =================
     if in_trade and positions:
@@ -192,8 +196,9 @@ while True:
             in_trade = False
             active_symbol = None
             trade_opened = False
+            last_trade_close_time = time.time()
 
-    # ================= MARKET WATCH =================
+    # ================= MARKET =================
     msg = f"📊 SOL Market: {round(price,2)}"
     market_watch(msg)
 
