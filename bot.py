@@ -17,11 +17,10 @@ GRID_STEP = 1.5
 CHECK_SPEED = 3
 
 WAIT_DROP_PERCENT = 0.003
-BREAKOUT_PERCENT = 0.004   # 🔥 mpya (uptrend entry)
+BREAKOUT_PERCENT = 0.004
 
 # ================= STATE =================
 positions = []
-base_price = None
 CHAT_ID = None
 active_symbol = None
 in_trade = False
@@ -92,13 +91,13 @@ def detect_trend(h):
     return "SIDE"
 
 # ================= START =================
-print("🚀 V10 PRO+BREAKOUT STARTED")
+print("🚀 V10 FINAL FIX STARTED")
 
 while CHAT_ID is None:
     get_chat_id()
     time.sleep(2)
 
-send("🚀 GRID V10 (PRO + BREAKOUT) ACTIVE")
+send("🚀 GRID V10 FINAL ACTIVE")
 
 # ================= MAIN =================
 while True:
@@ -126,9 +125,8 @@ while True:
         drop_level = last_tp_price * (1 - WAIT_DROP_PERCENT)
         if price <= drop_level:
             allow_new_trade = True
-
     else:
-        allow_new_trade = True  # first trade
+        allow_new_trade = True
 
     # ================= BREAKOUT MODE =================
     if last_tp_price:
@@ -147,7 +145,6 @@ while True:
         trade_opened = True
         in_trade = True
 
-        base_price = price
         positions = []
 
         for i in range(MAX_BUYS):
@@ -174,10 +171,12 @@ while True:
 
     # ================= TAKE PROFIT =================
     if in_trade and positions:
+
         avg = sum(positions) / len(positions)
         tp_price = avg * (1 + TP_PERCENT)
 
         if price >= tp_price:
+
             capital = len(positions) * TRADE_AMOUNT
             profit = capital * ((price - avg) / avg)
 
@@ -190,4 +189,39 @@ while True:
 
 💵 Profit: ${round(profit,2)}""")
 
+            # 🔥 FIX YA SPAM
             last_tp_price = price
+            positions = []
+            in_trade = False
+            active_symbol = None
+            trade_opened = False
+
+            continue   # 🔥 muhimu sana
+
+    # ================= STOP LOSS =================
+    if in_trade and positions:
+        avg = sum(positions) / len(positions)
+        sl = avg * (1 - SL_PERCENT)
+
+        if price <= sl:
+            capital = len(positions) * TRADE_AMOUNT
+            loss = capital * ((price - avg) / avg)
+
+            send(f"""🛑 STOP LOSS
+
+🪙 SOL-USDT
+💰 Capital: ${capital}
+📉 Loss: ${round(loss,2)}""")
+
+            positions = []
+            in_trade = False
+            active_symbol = None
+            trade_opened = False
+
+            continue
+
+    # ================= MARKET =================
+    msg = f"📊 SOL Market: {round(price,2)}"
+    market_watch(msg)
+
+    time.sleep(CHECK_SPEED)
