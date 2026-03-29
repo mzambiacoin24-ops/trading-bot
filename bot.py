@@ -10,14 +10,13 @@ COINS = ["SOL-USDT"]
 TRADE_AMOUNT = 10
 MAX_BUYS = 5
 
-TP_PERCENT = 0.02
-SL_PERCENT = 0.008
+TP_PERCENT = 0.015   # balance profit
+SL_PERCENT = 0.007
 
 GRID_STEP = 1.5
 CHECK_SPEED = 3
 
-WAIT_DROP_PERCENT = 0.003
-BREAKOUT_PERCENT = 0.004
+REENTRY_BUFFER = 0.002   # 🔥 sweet spot (no freeze, no spam)
 
 # ================= STATE =================
 positions = []
@@ -26,7 +25,7 @@ active_symbol = None
 in_trade = False
 trade_opened = False
 
-last_tp_price = None
+last_trade_price = None
 
 price_data = {c: [] for c in COINS}
 last_market_msg_id = None
@@ -91,13 +90,13 @@ def detect_trend(h):
     return "SIDE"
 
 # ================= START =================
-print("🚀 V10 FINAL FIX STARTED")
+print("🚀 FINAL BALANCE BOT STARTED")
 
 while CHAT_ID is None:
     get_chat_id()
     time.sleep(2)
 
-send("🚀 GRID V10 FINAL ACTIVE")
+send("🚀 GRID FINAL (BALANCE MODE) ACTIVE")
 
 # ================= MAIN =================
 while True:
@@ -118,21 +117,13 @@ while True:
     price = price_data["SOL-USDT"][-1]
     trend = detect_trend(price_data["SOL-USDT"])
 
-    allow_new_trade = False
+    allow_new_trade = True
 
-    # ================= DROP MODE =================
-    if last_tp_price:
-        drop_level = last_tp_price * (1 - WAIT_DROP_PERCENT)
-        if price <= drop_level:
-            allow_new_trade = True
-    else:
-        allow_new_trade = True
-
-    # ================= BREAKOUT MODE =================
-    if last_tp_price:
-        breakout_level = last_tp_price * (1 + BREAKOUT_PERCENT)
-        if price >= breakout_level:
-            allow_new_trade = True
+    # ================= SMART REENTRY =================
+    if last_trade_price:
+        diff = abs(price - last_trade_price) / last_trade_price
+        if diff < REENTRY_BUFFER:
+            allow_new_trade = False
 
     # ================= OPEN GRID =================
     if (
@@ -189,14 +180,14 @@ while True:
 
 💵 Profit: ${round(profit,2)}""")
 
-            # 🔥 FIX YA SPAM
-            last_tp_price = price
+            last_trade_price = price
+
             positions = []
             in_trade = False
             active_symbol = None
             trade_opened = False
 
-            continue   # 🔥 muhimu sana
+            continue
 
     # ================= STOP LOSS =================
     if in_trade and positions:
@@ -212,6 +203,8 @@ while True:
 🪙 SOL-USDT
 💰 Capital: ${capital}
 📉 Loss: ${round(loss,2)}""")
+
+            last_trade_price = price
 
             positions = []
             in_trade = False
