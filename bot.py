@@ -11,9 +11,10 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 
 print("API:", API_KEY)
 print("SECRET:", SECRET_KEY)
-client = Client(API_KEY, SECRET_KEY)
 
-client = Client(API_KEY, SECRET_KEY, testnet=True)
+client = Client(API_KEY, SECRET_KEY)
+client.API_URL = "https://testnet.binance.vision/api"
+
 
 COINS = ["SOLUSDT"]
 
