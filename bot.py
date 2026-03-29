@@ -46,9 +46,11 @@ def buy():
     try:
         price = get_price()
 
-        order = client.order_market_buy(
+        qty = round(TRADE_AMOUNT / price, 3)
+
+        client.order_market_buy(
             symbol=SYMBOL,
-            quoteOrderQty=TRADE_AMOUNT
+            quantity=qty
         )
 
         buy_price = price
@@ -72,13 +74,15 @@ def sell():
         qty = float(balance["free"])
 
         if qty > 0:
+            qty = round(qty, 3)
+
             client.order_market_sell(
                 symbol=SYMBOL,
-                quantity=round(qty, 3)
+                quantity=qty
             )
 
             price = get_price()
-            profit = (price - buy_price) * (TRADE_AMOUNT / buy_price)
+            profit = (price - buy_price) * qty
 
             send(f"💰 TP HIT\n\nSell: {price:.2f}\nProfit: {profit:.2f}")
 
@@ -87,7 +91,7 @@ def sell():
     except Exception as e:
         send(f"❌ SELL ERROR: {e}")
 
-# ================= MAIN LOOP =================
+# ================= MAIN =================
 get_chat_id()
 send("🚀 BOT ACTIVE")
 
