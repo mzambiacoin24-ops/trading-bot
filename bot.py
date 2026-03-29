@@ -10,7 +10,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 
 CHAT_ID = None
 
-client = Client(API_KEY, SECRET_KEY, testnet=True)
+client = Client(API_KEY, SECRET_KEY)
 
 SYMBOL = "SOLUSDT"
 TRADE_AMOUNT = 10
@@ -47,11 +47,7 @@ def buy():
 
         qty = round(TRADE_AMOUNT / price, 3)
 
-        client.order_market_buy(
-            symbol=SYMBOL,
-            quantity=qty
-        )
-
+        # NO REAL ORDER
         buy_price = price
         in_trade = True
 
@@ -67,25 +63,15 @@ def sell():
     global in_trade, buy_price
 
     try:
-        asset = SYMBOL.replace("USDT", "")
-        balance = client.get_asset_balance(asset=asset)
+        price = get_price()
 
-        qty = float(balance["free"])
+        qty = round(TRADE_AMOUNT / buy_price, 3)
+        profit = (price - buy_price) * qty
 
-        if qty > 0:
-            qty = round(qty, 3)
+        # NO REAL ORDER
+        send(f"💰 TP HIT\n\nSell: {price:.2f}\nProfit: {profit:.2f}")
 
-            client.order_market_sell(
-                symbol=SYMBOL,
-                quantity=qty
-            )
-
-            price = get_price()
-            profit = (price - buy_price) * qty
-
-            send(f"💰 TP HIT\n\nSell: {price:.2f}\nProfit: {profit:.2f}")
-
-            in_trade = False
+        in_trade = False
 
     except Exception as e:
         send(f"❌ SELL ERROR: {e}")
