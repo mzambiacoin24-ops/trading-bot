@@ -5,7 +5,7 @@ import requests
 # ================= CONFIG =================
 TOKEN = os.getenv("TOKEN")
 
-COINS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT"]
+COINS = ["SOL-USDT"]   # 🔥 SOL ONLY
 
 TRADE_AMOUNT = 10
 MAX_BUYS = 5
@@ -13,7 +13,7 @@ MAX_BUYS = 5
 TP_PERCENT = 0.007
 SL_PERCENT = 0.012
 
-GRID_STEP = 20
+GRID_STEP = 1.5   # 🔥 imepunguzwa kwa SOL
 CHECK_SPEED = 3
 
 # ================= STATE =================
@@ -22,7 +22,7 @@ base_price = None
 CHAT_ID = None
 active_symbol = None
 in_trade = False
-trade_opened = False   # 🔥 NEW LOCK
+trade_opened = False
 
 price_data = {c: [] for c in COINS}
 last_market_msg_id = None
@@ -88,57 +88,41 @@ def detect_trend(h):
 
 # ================= PICK COIN =================
 def pick_best_coin():
-    best = None
-    best_move = 0
-
-    for coin in COINS:
-        h = price_data[coin]
-        if len(h) < 5:
-            continue
-
-        move = abs(h[-1] - h[-5])
-
-        if move > best_move:
-            best_move = move
-            best = coin
-
-    return best
+    return COINS[0]   # 🔥 always SOL
 
 # ================= START =================
-print("🚀 V10 STARTED")
+print("🚀 V10 SOL STARTED")
 
 while CHAT_ID is None:
     get_chat_id()
     time.sleep(2)
 
-send("🚀 GRID V10 ACTIVE")
+send("🚀 GRID V10 (SOL ONLY) ACTIVE")
 
 # ================= MAIN =================
 while True:
 
-    # ===== COLLECT PRICES =====
-    for coin in COINS:
-        price = get_price(coin)
-        if price:
-            price_data[coin].append(price)
-            if len(price_data[coin]) > 20:
-                price_data[coin].pop(0)
+    # ===== COLLECT PRICE =====
+    price = get_price("SOL-USDT")
+    if price:
+        price_data["SOL-USDT"].append(price)
+        if len(price_data["SOL-USDT"]) > 20:
+            price_data["SOL-USDT"].pop(0)
 
-    # ===== CHOOSE COIN =====
     if not in_trade and active_symbol is None:
-        active_symbol = pick_best_coin()
+        active_symbol = "SOL-USDT"
 
     if not active_symbol:
         time.sleep(CHECK_SPEED)
         continue
 
-    price = price_data[active_symbol][-1]
-    trend = detect_trend(price_data[active_symbol])
+    price = price_data["SOL-USDT"][-1]
+    trend = detect_trend(price_data["SOL-USDT"])
 
     # ================= OPEN GRID =================
     if not in_trade and trend == "UP" and not trade_opened:
 
-        trade_opened = True   # 🔥 LOCK HARAKA
+        trade_opened = True
         in_trade = True
 
         base_price = price
@@ -152,7 +136,7 @@ while True:
         avg_entry = sum(positions) / len(positions)
         tp = avg_entry * (1 + TP_PERCENT)
 
-        msg = f"""📍 {active_symbol}
+        msg = f"""📍 SOL-USDT
 
 💰 Total Capital: ${total_capital}
 📊 Entries: {MAX_BUYS}
@@ -166,7 +150,7 @@ while True:
 
         send(msg)
 
-    # ================= CLOSE ALL =================
+    # ================= TAKE PROFIT =================
     if in_trade and positions:
         avg = sum(positions) / len(positions)
         tp_price = avg * (1 + TP_PERCENT)
@@ -175,12 +159,11 @@ while True:
             capital = len(positions) * TRADE_AMOUNT
             profit = capital * ((price - avg) / avg)
 
-            send(f"""📤 TRADE CLOSED
+            send(f"""📤 TP HIT
 
-🪙 {active_symbol}
+🪙 SOL-USDT
 💰 Capital: ${capital}
-📊 Entries: {len(positions)}
-📊 Avg Entry: {round(avg,2)}
+📊 Avg: {round(avg,2)}
 📊 Exit: {round(price,2)}
 
 💵 Profit: ${round(profit,2)}""")
@@ -188,7 +171,7 @@ while True:
             positions = []
             in_trade = False
             active_symbol = None
-            trade_opened = False   # 🔥 RESET
+            trade_opened = False
 
     # ================= STOP LOSS =================
     if in_trade and positions:
@@ -201,21 +184,17 @@ while True:
 
             send(f"""🛑 STOP LOSS
 
-🪙 {active_symbol}
+🪙 SOL-USDT
 💰 Capital: ${capital}
 📉 Loss: ${round(loss,2)}""")
 
             positions = []
             in_trade = False
             active_symbol = None
-            trade_opened = False   # 🔥 RESET
+            trade_opened = False
 
     # ================= MARKET WATCH =================
-    msg = "📊 Market Watch:\n"
-    for coin in COINS:
-        if price_data[coin]:
-            msg += f"{coin}: {round(price_data[coin][-1],2)}\n"
-
+    msg = f"📊 SOL Market: {round(price,2)}"
     market_watch(msg)
 
     time.sleep(CHECK_SPEED)
