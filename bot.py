@@ -10,8 +10,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 
 CHAT_ID = None
 
-client = Client(API_KEY, SECRET_KEY)
-client.API_URL = "https://testnet.binance.vision/api"
+client = Client(API_KEY, SECRET_KEY, testnet=True)
 
 SYMBOL = "SOLUSDT"
 TRADE_AMOUNT = 10
