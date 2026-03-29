@@ -22,6 +22,7 @@ base_price = None
 CHAT_ID = None
 active_symbol = None
 in_trade = False
+trade_opened = False   # 🔥 NEW LOCK
 
 price_data = {c: [] for c in COINS}
 last_market_msg_id = None
@@ -135,8 +136,10 @@ while True:
     trend = detect_trend(price_data[active_symbol])
 
     # ================= OPEN GRID =================
-    if not in_trade and trend == "UP":
-        in_trade = True   # 🔥 FIX YA DUPLICATE (imepandishwa juu)
+    if not in_trade and trend == "UP" and not trade_opened:
+
+        trade_opened = True   # 🔥 LOCK HARAKA
+        in_trade = True
 
         base_price = price
         positions = []
@@ -185,6 +188,7 @@ while True:
             positions = []
             in_trade = False
             active_symbol = None
+            trade_opened = False   # 🔥 RESET
 
     # ================= STOP LOSS =================
     if in_trade and positions:
@@ -204,6 +208,7 @@ while True:
             positions = []
             in_trade = False
             active_symbol = None
+            trade_opened = False   # 🔥 RESET
 
     # ================= MARKET WATCH =================
     msg = "📊 Market Watch:\n"
