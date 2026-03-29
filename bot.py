@@ -10,15 +10,15 @@ COINS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT"]
 TRADE_AMOUNT = 10
 MAX_BUYS = 5
 
-TP_PERCENT = 0.002
-SL_PERCENT = 0.003
+TP_PERCENT = 0.007     # 0.7% (profit kubwa)
+SL_PERCENT = 0.02      # 2% (balanced)
 
-GRID_STEP = 20
+GRID_STEP = 80         # spacing kubwa (no overtrading)
 CHECK_SPEED = 3
 
 # ================= STATE =================
 positions = []
-base_price = None
+entry_prices = []
 CHAT_ID = None
 active_symbol = None
 in_trade = False
@@ -104,13 +104,13 @@ def pick_best_coin():
     return best
 
 # ================= START =================
-print("🚀 V10 STARTED")
+print("🚀 V7 STARTED")
 
 while CHAT_ID is None:
     get_chat_id()
     time.sleep(2)
 
-send("🚀 GRID V10 ACTIVE")
+send("🚀 GRID V7 ACTIVE")
 
 # ================= MAIN =================
 while True:
@@ -134,65 +134,54 @@ while True:
     price = price_data[active_symbol][-1]
     trend = detect_trend(price_data[active_symbol])
 
-    # ================= OPEN GRID (ALL 5 AT ONCE) =================
-    if not in_trade and trend == "UP":
-        base_price = price
-        positions = []
-
-        for i in range(MAX_BUYS):
-            buy_price = price - (i * GRID_STEP)
-            positions.append(buy_price)
-
-        total_capital = MAX_BUYS * TRADE_AMOUNT
-        avg_entry = sum(positions) / len(positions)
-        tp = avg_entry * (1 + TP_PERCENT)
-
-        msg = f"""📍 {active_symbol}
-
-💰 Total Capital: ${total_capital}
-📊 Entries: {MAX_BUYS}
-📊 Avg Entry: {round(avg_entry,2)}
-🎯 TP: {round(tp,2)}
-
-"""
-
-        for p in positions:
-            msg += f"🟢 BUY {round(p,2)}\n"
-
-        send(msg)
-
+    # ================= SMART ENTRY =================
+    if not in_trade and trend == "DOWN":
         in_trade = True
+        positions = []
+        entry_prices = []
+        base_price = price
 
-    # ================= CLOSE ALL =================
+        send(f"📍 {active_symbol} (SMART ENTRY)\n📊 Base: {round(base_price,2)}")
+
+    # ================= GRID BUY (STEP BY STEP) =================
+    if in_trade and len(positions) < MAX_BUYS:
+        next_buy = base_price - (len(positions) * GRID_STEP)
+
+        if price <= next_buy:
+            positions.append(next_buy)
+            entry_prices.append(next_buy)
+            send(f"🟢 BUY {round(next_buy,2)}")
+
+    # ================= TAKE PROFIT =================
     if in_trade and positions:
-        avg = sum(positions) / len(positions)
+        avg = sum(entry_prices) / len(entry_prices)
         tp_price = avg * (1 + TP_PERCENT)
 
         if price >= tp_price:
-            capital = len(positions) * TRADE_AMOUNT
+            capital = len(entry_prices) * TRADE_AMOUNT
             profit = capital * ((price - avg) / avg)
 
-            send(f"""📤 TRADE CLOSED
+            send(f"""📤 TP HIT
 
 🪙 {active_symbol}
 💰 Capital: ${capital}
-📊 Entries: {len(positions)}
-📊 Avg Entry: {round(avg,2)}
+📊 Avg: {round(avg,2)}
 📊 Exit: {round(price,2)}
 
 💵 Profit: ${round(profit,2)}""")
 
             positions = []
+            entry_prices = []
             in_trade = False
             active_symbol = None
 
     # ================= STOP LOSS =================
-    if in_trade and positions:
-        avg = sum(positions) / len(positions)
+    if in_trade and entry_prices:
+        avg = sum(entry_prices) / len(entry_prices)
         sl = avg * (1 - SL_PERCENT)
 
         if price <= sl:
-            capital = len(positions) * TRADE_AMOUNT
+            capital = len(entry_prices) * TRADE_AMOUNT
             loss = capital * ((price - avg) / avg)
 
             send(f"""🛑 STOP LOSS
@@ -202,11 +191,12 @@ while True:
 📉 Loss: ${round(loss,2)}""")
 
             positions = []
+            entry_prices = []
             in_trade = False
             active_symbol = None
 
     # ================= MARKET WATCH =================
-    msg = "📊 Market Watch:\n"
+    msg = "📊 Market:\n"
     for coin in COINS:
         if price_data[coin]:
             msg += f"{coin}: {round(price_data[coin][-1],2)}\n"
