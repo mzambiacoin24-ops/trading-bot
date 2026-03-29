@@ -10,13 +10,13 @@ COINS = ["SOL-USDT"]
 TRADE_AMOUNT = 10
 MAX_BUYS = 5
 
-TP_PERCENT = 0.01      # 🔥 profit kubwa
-SL_PERCENT = 0.012
+TP_PERCENT = 0.012   # 🔥 profit kubwa
+SL_PERCENT = 0.006   # 🔥 loss ndogo
 
 GRID_STEP = 1.5
 CHECK_SPEED = 3
 
-COOLDOWN_AFTER_TP = 30   # 🔥 inazuia trade spam
+COOLDOWN_AFTER_TP = 20
 
 # ================= STATE =================
 positions = []
@@ -90,13 +90,13 @@ def detect_trend(h):
     return "SIDE"
 
 # ================= START =================
-print("🚀 V10 SOL FINAL STARTED")
+print("🚀 V10 SOL ACTIVE (PROFIT MODE)")
 
 while CHAT_ID is None:
     get_chat_id()
     time.sleep(2)
 
-send("🚀 GRID V10 (SOL FINAL) ACTIVE")
+send("🚀 GRID V10 (SOL PROFIT MODE) ACTIVE")
 
 # ================= MAIN =================
 while True:
@@ -120,7 +120,7 @@ while True:
     # ================= OPEN GRID =================
     if (
         not in_trade
-        and trend == "UP"
+        and trend in ["UP", "SIDE"]   # 🔥 imekuwa active
         and not trade_opened
         and (time.time() - last_trade_close_time > COOLDOWN_AFTER_TP)
     ):
@@ -175,7 +175,7 @@ while True:
             in_trade = False
             active_symbol = None
             trade_opened = False
-            last_trade_close_time = time.time()   # 🔥 cooldown start
+            last_trade_close_time = time.time()
 
     # ================= STOP LOSS =================
     if in_trade and positions:
