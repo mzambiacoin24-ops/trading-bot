@@ -10,10 +10,10 @@ COINS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT"]
 TRADE_AMOUNT = 10
 MAX_BUYS = 5
 
-TP_PERCENT = 0.007     # 0.7% (profit kubwa)
-SL_PERCENT = 0.02      # 2% (balanced)
+TP_PERCENT = 0.007
+SL_PERCENT = 0.02
 
-GRID_STEP = 80         # spacing kubwa (no overtrading)
+GRID_STEP = 80
 CHECK_SPEED = 3
 
 # ================= STATE =================
@@ -104,13 +104,13 @@ def pick_best_coin():
     return best
 
 # ================= START =================
-print("🚀 V7 STARTED")
+print("🚀 V7.1 STARTED")
 
 while CHAT_ID is None:
     get_chat_id()
     time.sleep(2)
 
-send("🚀 GRID V7 ACTIVE")
+send("🚀 GRID V7.1 ACTIVE")
 
 # ================= MAIN =================
 while True:
@@ -123,8 +123,8 @@ while True:
             if len(price_data[coin]) > 20:
                 price_data[coin].pop(0)
 
-    # ===== CHOOSE COIN =====
-    if not in_trade:
+    # ===== SELECT COIN (ONLY IF FREE) =====
+    if not in_trade and active_symbol is None:
         active_symbol = pick_best_coin()
 
     if not active_symbol:
@@ -143,17 +143,16 @@ while True:
 
         send(f"📍 {active_symbol} (SMART ENTRY)\n📊 Base: {round(base_price,2)}")
 
-    # ================= GRID BUY (STEP BY STEP) =================
-    if in_trade and len(positions) < MAX_BUYS:
-        next_buy = base_price - (len(positions) * GRID_STEP)
+    # ================= GRID BUY =================
+    if in_trade and len(entry_prices) < MAX_BUYS:
+        next_buy = base_price - (len(entry_prices) * GRID_STEP)
 
         if price <= next_buy:
-            positions.append(next_buy)
             entry_prices.append(next_buy)
             send(f"🟢 BUY {round(next_buy,2)}")
 
     # ================= TAKE PROFIT =================
-    if in_trade and positions:
+    if in_trade and entry_prices:
         avg = sum(entry_prices) / len(entry_prices)
         tp_price = avg * (1 + TP_PERCENT)
 
@@ -170,7 +169,6 @@ while True:
 
 💵 Profit: ${round(profit,2)}""")
 
-            positions = []
             entry_prices = []
             in_trade = False
             active_symbol = None
@@ -190,7 +188,6 @@ while True:
 💰 Capital: ${capital}
 📉 Loss: ${round(loss,2)}""")
 
-            positions = []
             entry_prices = []
             in_trade = False
             active_symbol = None
