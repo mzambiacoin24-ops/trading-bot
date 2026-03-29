@@ -10,8 +10,8 @@ COINS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT"]
 TRADE_AMOUNT = 10
 MAX_BUYS = 5
 
-TP_PERCENT = 0.006   # imeongezwa (profit iwe meaningful)
-SL_PERCENT = 0.01    # imepunguzwa risk balance
+TP_PERCENT = 0.007   # 🔥 profit kubwa
+SL_PERCENT = 0.012   # 🔥 SL ndogo kidogo
 
 GRID_STEP = 20
 CHECK_SPEED = 3
@@ -135,7 +135,7 @@ while True:
     trend = detect_trend(price_data[active_symbol])
 
     # ================= OPEN GRID =================
-    if not in_trade and trend == "UP":
+    if not in_trade and trend == "UP" and len(positions) == 0:
         base_price = price
         positions = []
 
@@ -162,6 +162,7 @@ while True:
         send(msg)
 
         in_trade = True
+        time.sleep(2)   # 🔥 FIX duplicate
 
     # ================= CLOSE ALL =================
     if in_trade and positions:
@@ -184,7 +185,7 @@ while True:
 
             positions = []
             in_trade = False
-            active_symbol = None   # 🔥 FIX
+            active_symbol = None
 
     # ================= STOP LOSS =================
     if in_trade and positions:
@@ -203,7 +204,7 @@ while True:
 
             positions = []
             in_trade = False
-            active_symbol = None   # 🔥 FIX
+            active_symbol = None
 
     # ================= MARKET WATCH =================
     msg = "📊 Market Watch:\n"
