@@ -10,13 +10,13 @@ COINS = ["SOL-USDT"]
 TRADE_AMOUNT = 10
 MAX_BUYS = 5
 
-TP_PERCENT = 0.012   # 🔥 profit kubwa
-SL_PERCENT = 0.006   # 🔥 loss ndogo
+TP_PERCENT = 0.02    # 🔥 profit kubwa zaidi
+SL_PERCENT = 0.008
 
 GRID_STEP = 1.5
 CHECK_SPEED = 3
 
-COOLDOWN_AFTER_TP = 20
+WAIT_DROP_PERCENT = 0.003   # 🔥 lazima ishuke kwanza kabla ya trade mpya
 
 # ================= STATE =================
 positions = []
@@ -25,7 +25,8 @@ CHAT_ID = None
 active_symbol = None
 in_trade = False
 trade_opened = False
-last_trade_close_time = 0
+
+last_tp_price = None   # 🔥 mpya (tracking drop)
 
 price_data = {c: [] for c in COINS}
 last_market_msg_id = None
@@ -90,13 +91,13 @@ def detect_trend(h):
     return "SIDE"
 
 # ================= START =================
-print("🚀 V10 SOL ACTIVE (PROFIT MODE)")
+print("🚀 V10 PRO MODE STARTED")
 
 while CHAT_ID is None:
     get_chat_id()
     time.sleep(2)
 
-send("🚀 GRID V10 (SOL PROFIT MODE) ACTIVE")
+send("🚀 GRID V10 (PRO MODE) ACTIVE")
 
 # ================= MAIN =================
 while True:
@@ -107,7 +108,7 @@ while True:
         if len(price_data["SOL-USDT"]) > 20:
             price_data["SOL-USDT"].pop(0)
 
-    if not in_trade and active_symbol is None:
+    if not in_trade:
         active_symbol = "SOL-USDT"
 
     if not active_symbol:
@@ -117,12 +118,19 @@ while True:
     price = price_data["SOL-USDT"][-1]
     trend = detect_trend(price_data["SOL-USDT"])
 
+    # ================= WAIT FOR DROP =================
+    allow_new_trade = True
+    if last_tp_price:
+        drop_level = last_tp_price * (1 - WAIT_DROP_PERCENT)
+        if price > drop_level:
+            allow_new_trade = False
+
     # ================= OPEN GRID =================
     if (
         not in_trade
-        and trend in ["UP", "SIDE"]   # 🔥 imekuwa active
+        and trend in ["UP", "SIDE"]
         and not trade_opened
-        and (time.time() - last_trade_close_time > COOLDOWN_AFTER_TP)
+        and allow_new_trade
     ):
 
         trade_opened = True
@@ -171,11 +179,12 @@ while True:
 
 💵 Profit: ${round(profit,2)}""")
 
+            last_tp_price = price   # 🔥 muhimu sana
+
             positions = []
             in_trade = False
             active_symbol = None
             trade_opened = False
-            last_trade_close_time = time.time()
 
     # ================= STOP LOSS =================
     if in_trade and positions:
@@ -196,7 +205,6 @@ while True:
             in_trade = False
             active_symbol = None
             trade_opened = False
-            last_trade_close_time = time.time()
 
     # ================= MARKET =================
     msg = f"📊 SOL Market: {round(price,2)}"
