@@ -10,15 +10,15 @@ COINS = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT"]
 TRADE_AMOUNT = 10
 MAX_BUYS = 5
 
-TP_PERCENT = 0.007
-SL_PERCENT = 0.02
+TP_PERCENT = 0.006   # imeongezwa (profit iwe meaningful)
+SL_PERCENT = 0.01    # imepunguzwa risk balance
 
-GRID_STEP = 80
+GRID_STEP = 20
 CHECK_SPEED = 3
 
 # ================= STATE =================
 positions = []
-entry_prices = []
+base_price = None
 CHAT_ID = None
 active_symbol = None
 in_trade = False
@@ -104,13 +104,13 @@ def pick_best_coin():
     return best
 
 # ================= START =================
-print("🚀 V7.1 STARTED")
+print("🚀 V10 STARTED")
 
 while CHAT_ID is None:
     get_chat_id()
     time.sleep(2)
 
-send("🚀 GRID V7.1 ACTIVE")
+send("🚀 GRID V10 ACTIVE")
 
 # ================= MAIN =================
 while True:
@@ -123,7 +123,7 @@ while True:
             if len(price_data[coin]) > 20:
                 price_data[coin].pop(0)
 
-    # ===== SELECT COIN (ONLY IF FREE) =====
+    # ===== CHOOSE COIN (FIXED) =====
     if not in_trade and active_symbol is None:
         active_symbol = pick_best_coin()
 
@@ -134,52 +134,65 @@ while True:
     price = price_data[active_symbol][-1]
     trend = detect_trend(price_data[active_symbol])
 
-    # ================= SMART ENTRY =================
-    if not in_trade and trend == "DOWN":
-        in_trade = True
-        positions = []
-        entry_prices = []
+    # ================= OPEN GRID =================
+    if not in_trade and trend == "UP":
         base_price = price
+        positions = []
 
-        send(f"📍 {active_symbol} (SMART ENTRY)\n📊 Base: {round(base_price,2)}")
+        for i in range(MAX_BUYS):
+            buy_price = price - (i * GRID_STEP)
+            positions.append(buy_price)
 
-    # ================= GRID BUY =================
-    if in_trade and len(entry_prices) < MAX_BUYS:
-        next_buy = base_price - (len(entry_prices) * GRID_STEP)
+        total_capital = MAX_BUYS * TRADE_AMOUNT
+        avg_entry = sum(positions) / len(positions)
+        tp = avg_entry * (1 + TP_PERCENT)
 
-        if price <= next_buy:
-            entry_prices.append(next_buy)
-            send(f"🟢 BUY {round(next_buy,2)}")
+        msg = f"""📍 {active_symbol}
 
-    # ================= TAKE PROFIT =================
-    if in_trade and entry_prices:
-        avg = sum(entry_prices) / len(entry_prices)
+💰 Total Capital: ${total_capital}
+📊 Entries: {MAX_BUYS}
+📊 Avg Entry: {round(avg_entry,2)}
+🎯 TP: {round(tp,2)}
+
+"""
+
+        for p in positions:
+            msg += f"🟢 BUY {round(p,2)}\n"
+
+        send(msg)
+
+        in_trade = True
+
+    # ================= CLOSE ALL =================
+    if in_trade and positions:
+        avg = sum(positions) / len(positions)
         tp_price = avg * (1 + TP_PERCENT)
 
         if price >= tp_price:
-            capital = len(entry_prices) * TRADE_AMOUNT
+            capital = len(positions) * TRADE_AMOUNT
             profit = capital * ((price - avg) / avg)
 
-            send(f"""📤 TP HIT
+            send(f"""📤 TRADE CLOSED
 
 🪙 {active_symbol}
 💰 Capital: ${capital}
-📊 Avg: {round(avg,2)}
+📊 Entries: {len(positions)}
+📊 Avg Entry: {round(avg,2)}
 📊 Exit: {round(price,2)}
 
 💵 Profit: ${round(profit,2)}""")
 
-            entry_prices = []
+            positions = []
             in_trade = False
-            active_symbol = None
+            active_symbol = None   # 🔥 FIX
 
     # ================= STOP LOSS =================
-    if in_trade and entry_prices:
-        avg = sum(entry_prices) / len(entry_prices)
+    if in_trade and positions:
+        avg = sum(positions) / len(positions)
         sl = avg * (1 - SL_PERCENT)
 
         if price <= sl:
-            capital = len(entry_prices) * TRADE_AMOUNT
+            capital = len(positions) * TRADE_AMOUNT
             loss = capital * ((price - avg) / avg)
 
             send(f"""🛑 STOP LOSS
@@ -188,12 +201,12 @@ while True:
 💰 Capital: ${capital}
 📉 Loss: ${round(loss,2)}""")
 
-            entry_prices = []
+            positions = []
             in_trade = False
-            active_symbol = None
+            active_symbol = None   # 🔥 FIX
 
     # ================= MARKET WATCH =================
-    msg = "📊 Market:\n"
+    msg = "📊 Market Watch:\n"
     for coin in COINS:
         if price_data[coin]:
             msg += f"{coin}: {round(price_data[coin][-1],2)}\n"
