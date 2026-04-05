@@ -10,7 +10,9 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 
 CHAT_ID = None
 
-client = Client(API_KEY, SECRET_KEY)
+client = None
+if API_KEY and SECRET_KEY:
+    client = Client(API_KEY, SECRET_KEY)
 
 SYMBOL = "SOLUSDT"
 TRADE_AMOUNT = 10
