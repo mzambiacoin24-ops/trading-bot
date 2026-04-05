@@ -1,103 +1,28 @@
-print("🚀 BOT STARTING...")
-
 import os
-print("✅ OS imported")
-
 import time
-print("✅ time imported")
-
 import requests
-print("✅ requests imported")
 
-try:
-    from binance.client import Client
-    print("✅ binance imported")
-except Exception as e:
-    print("❌ binance import error:", e)
-
-
-
-
-# ================= CONFIG =================
-TOKEN = os.getenv("BOT_TOKEN")  # FIXED
-API_KEY = os.getenv("API_KEY")
-SECRET_KEY = os.getenv("SECRET_KEY")
-
+TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = None
 
-client = None
-if API_KEY and SECRET_KEY:
-    client = Client(API_KEY, SECRET_KEY)
-
-SYMBOL = "SOLUSDT"
-TRADE_AMOUNT = 10
-TP_PERCENT = 0.015
-CHECK_SPEED = 5
-
-in_trade = False
-buy_price = 0
-
-# ================= TELEGRAM =================
 def send(msg):
     global CHAT_ID
     if CHAT_ID:
         url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-        try:
-            requests.post(url, json={"chat_id": CHAT_ID, "text": msg}, timeout=10)
-        except:
-            pass
+        requests.post(url, json={"chat_id": CHAT_ID, "text": msg})
 
 def get_chat_id():
     global CHAT_ID
     url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
     try:
-        data = requests.get(url, timeout=10).json()
+        data = requests.get(url).json()
+        print(data)
         if data.get("result"):
             CHAT_ID = data["result"][-1]["message"]["chat"]["id"]
             print("CHAT_ID:", CHAT_ID)
-    except:
-        pass
+    except Exception as e:
+        print("ERROR:", e)
 
-# ================= PRICE =================
-def get_price():
-    try:
-        if not client:
-    return None
-data = client.get_symbol_ticker(symbol=SYMBOL)
-        return float(data["price"])
-    except:
-        return None
-
-# ================= BUY =================
-def buy():
-    global in_trade, buy_price
-
-    price = get_price()
-    if not price:
-        return
-
-    buy_price = price
-    in_trade = True
-
-    tp = buy_price * (1 + TP_PERCENT)
-
-    send(f"🟢 BUY START\n\nPrice: {buy_price:.2f}\nTP: {tp:.2f}")
-
-# ================= SELL =================
-def sell():
-    global in_trade, buy_price
-
-    price = get_price()
-    if not price:
-        return
-
-    profit = (price - buy_price) * (TRADE_AMOUNT / buy_price)
-
-    send(f"💰 TP HIT\n\nSell: {price:.2f}\nProfit: {profit:.2f}")
-
-    in_trade = False
-
-# ================= MAIN =================
 print("🚀 BOT STARTING...")
 
 while True:
@@ -105,22 +30,10 @@ while True:
         get_chat_id()
 
         if CHAT_ID:
-            send("🚀 BOT ACTIVE")
+            send("🔥 BOT WORKING NOW")
 
-            price = get_price()
-            if not price:
-                time.sleep(5)
-                continue
-
-            if not in_trade:
-                buy()
-            else:
-                tp_price = buy_price * (1 + TP_PERCENT)
-                if price >= tp_price:
-                    sell()
-
-        time.sleep(CHECK_SPEED)
+        time.sleep(5)
 
     except Exception as e:
-        print("ERROR:", e)
+        print("MAIN ERROR:", e)
         time.sleep(5)
