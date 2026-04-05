@@ -1,7 +1,22 @@
+print("🚀 BOT STARTING...")
+
 import os
+print("✅ OS imported")
+
 import time
+print("✅ time imported")
+
 import requests
-from binance.client import Client
+print("✅ requests imported")
+
+try:
+    from binance.client import Client
+    print("✅ binance imported")
+except Exception as e:
+    print("❌ binance import error:", e)
+
+
+
 
 # ================= CONFIG =================
 TOKEN = os.getenv("BOT_TOKEN")  # FIXED
