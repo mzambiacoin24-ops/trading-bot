@@ -46,7 +46,9 @@ def get_chat_id():
 # ================= PRICE =================
 def get_price():
     try:
-        data = client.get_symbol_ticker(symbol=SYMBOL)
+        if not client:
+    return None
+data = client.get_symbol_ticker(symbol=SYMBOL)
         return float(data["price"])
     except:
         return None
