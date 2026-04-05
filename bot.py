@@ -4,7 +4,7 @@ import requests
 from binance.client import Client
 
 # ================= CONFIG =================
-TOKEN = os.getenv("TOKEN")
+TOKEN = os.getenv("BOT_TOKEN")  # FIXED
 API_KEY = os.getenv("API_KEY")
 SECRET_KEY = os.getenv("SECRET_KEY")
 
@@ -25,13 +25,16 @@ def send(msg):
     global CHAT_ID
     if CHAT_ID:
         url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-        requests.post(url, json={"chat_id": CHAT_ID, "text": msg})
+        try:
+            requests.post(url, json={"chat_id": CHAT_ID, "text": msg}, timeout=10)
+        except:
+            pass
 
 def get_chat_id():
     global CHAT_ID
     url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
     try:
-        data = requests.get(url).json()
+        data = requests.get(url, timeout=10).json()
         if data.get("result"):
             CHAT_ID = data["result"][-1]["message"]["chat"]["id"]
             print("CHAT_ID:", CHAT_ID)
